@@ -1,0 +1,144 @@
+"""
+Concrete constraint on n = -4 QG neutrino decoherence.
+
+IceCube (2024) constrained ξ in the standard parameterization
+    Γ(E) = ξ * (E/E_0)^n
+for n = 0, 1, 2, 3 at E_0 = 1 TeV.
+
+The open-system QG framework predicts n = -4: the rate GROWS
+at low energy.  IceCube did not analyze n = -4.
+
+Here we compute:
+  (a) IceCube's effective n=-4 constraint by extrapolation
+  (b) Independent sensitivity of reactor and solar experiments
+  (c) Which experiment wins
+"""
+import numpy as np
+
+# Constants
+GeV = 1.0
+MeV = 1e-3
+TeV = 1e3
+E_Pl = 1.22e19  # GeV
+km_to_inv_GeV = 5.07e15
+AU_to_km = 1.496e8
+
+
+def gamma_E(E_GeV, xi, n, E_0_GeV=1e3):
+    """
+    QG decoherence rate in natural units.
+        Gamma(E) = xi * (E/E_0)^n
+    """
+    return xi * (E_GeV / E_0_GeV)**n
+
+
+def sensitivity_rate(L_km):
+    """
+    Decoherence rate that produces O(1) suppression at baseline L.
+    Γ L ~ 1  →  Γ ~ 1/L.
+    """
+    L_inv_GeV = L_km * km_to_inv_GeV
+    return 1.0 / L_inv_GeV
+
+
+def xi_from_rate(Gamma, E_GeV, n, E_0_GeV=1e3):
+    """Invert: ξ from Γ at energy E."""
+    return Gamma / (E_GeV / E_0_GeV)**n
+
+
+if __name__ == "__main__":
+    print("=" * 74)
+    print("n = -4 QG neutrino decoherence: sensitivity comparison")
+    print("=" * 74)
+
+    # Experimental setups
+    experiments = {
+        "IceCube (atm ν)":   dict(E=1e3,  L=1e4, ref="Abbasi 2024"),
+        "KamLAND (reactor)": dict(E=3.0*MeV, L=180, ref="KamLAND 2011"),
+        "Daya Bay (reactor)":dict(E=3.0*MeV, L=1.7, ref="Daya Bay 2017"),
+        "Borexino (7Be)":    dict(E=0.86*MeV, L=AU_to_km, ref="Borexino 2017"),
+        "Super-K (8B)":      dict(E=10.0*MeV, L=AU_to_km, ref="Super-K 2015"),
+    }
+
+    print(f"\n{'experiment':>20}  {'E [GeV]':>12}  {'L [km]':>12}  "
+          f"{'Γ_sens [GeV]':>16}")
+    print("-" * 64)
+    results = {}
+    for name, info in experiments.items():
+        G_sens = sensitivity_rate(info["L"])
+        results[name] = dict(E=info["E"], L=info["L"],
+                             G_sens=G_sens, ref=info["ref"])
+        print(f"{name:>20}  {info['E']:>12.3e}  {info['L']:>12.2e}  "
+              f"{G_sens:>16.3e}")
+
+    # Map each to xi at E_0 = 1 TeV for n = -4
+    print(f"\n" + "=" * 74)
+    print(f"Equivalent ξ (n = -4) at reference E_0 = 1 TeV")
+    print("=" * 74)
+    print(f"\n{'experiment':>20}  {'ξ_sensitivity':>18}")
+    print("-" * 40)
+    for name, info in results.items():
+        xi = xi_from_rate(info["G_sens"], info["E"], n=-4)
+        results[name]["xi_n4"] = xi
+        print(f"{name:>20}  {xi:>18.3e}")
+
+    # Compare
+    print(f"\n" + "=" * 74)
+    print("Interpretation")
+    print("=" * 74)
+
+    xi_IC = results["IceCube (atm ν)"]["xi_n4"]
+    xi_Kam = results["KamLAND (reactor)"]["xi_n4"]
+    xi_Bor = results["Borexino (7Be)"]["xi_n4"]
+
+    print(f"""
+    For n = -4, extrapolating IceCube's null result to 1 GeV would
+    give ξ < {xi_IC:.2e}.  This is the "implicit" IceCube bound on
+    n = -4 from the n = 0 analysis — but IceCube did NOT present
+    this because the extrapolation is model-dependent.
+
+    Direct sensitivities:
+        KamLAND:  ξ < {xi_Kam:.2e}
+        Borexino: ξ < {xi_Bor:.2e}
+
+    Comparison:
+        KamLAND / IceCube(extrapolated) = {xi_Kam/xi_IC:.2e}
+        Borexino / IceCube(extrapolated) = {xi_Bor/xi_IC:.2e}
+
+    If the ratio is > 1, IceCube's extrapolated bound is stronger
+    and the escape is illusory.
+    If the ratio is < 1, low-E experiments are competitive.
+    """)
+
+    # Honest verdict
+    print(f"\n" + "=" * 74)
+    print("VERDICT")
+    print("=" * 74)
+    if xi_Bor < xi_IC:
+        print(f"""
+    Borexino's direct sensitivity to n = -4 is
+    {xi_IC/xi_Bor:.1e}× BETTER than IceCube's extrapolated bound.
+
+    The n = -4 escape is REAL.  Solar neutrino experiments are
+    the right probe, and Borexino already has the data to
+    constrain it.  A dedicated reanalysis would produce a
+    genuine, novel constraint.
+    """)
+    else:
+        print(f"""
+    IceCube's extrapolated bound on n = -4 is
+    {xi_Bor/xi_IC:.1e}× stronger than Borexino's direct sensitivity.
+
+    The n = -4 escape is ILLUSORY.  IceCube already constrains it
+    even though they didn't present this.  Low-E experiments
+    cannot improve.
+    """)
+
+    print("""
+    CAVEAT: numbers here are order-of-magnitude.  Real constraints
+    require: (1) the exact IceCube ξ for each n from their paper;
+    (2) published likelihoods from KamLAND, Borexino, Super-K;
+    (3) full 3-flavor oscillation + decoherence fit.
+
+    This module demonstrates the METHOD, not the final number.
+    """)
